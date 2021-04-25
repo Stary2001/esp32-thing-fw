@@ -18,7 +18,6 @@
 static const char *TAG = "HTTP_CLIENT";
 
 // Embed the right root certificate to use Let's Encrypt
-// hope you didn't want to ...
 
 extern const char dst_pem_start[] asm("_binary_dst_root_ca_x3_pem_start");
 extern const char dst_pem_end[]   asm("_binary_dst_root_ca_x3_pem_end");
@@ -113,7 +112,6 @@ void post_to_influx(const char *post_data)
      * If URL as well as host and path parameters are specified, values of host and path will be considered.
      */
 
-    // fuck c
     snprintf(query_buffer, 128, "db=%s&u=%s&p=%s", "stary", INFLUX_USERNAME, INFLUX_PASSWORD);
 
     esp_http_client_config_t config = {
