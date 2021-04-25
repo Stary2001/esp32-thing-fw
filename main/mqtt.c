@@ -8,7 +8,7 @@
 #include "mqtt_client.h"
 #include "cJSON.h"
 
-#include "config.h"
+#include "settings.h"
 
 static const char *TAG = "MQTT";
 

@@ -11,7 +11,7 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
-#include "config.h"
+#include "settings.h"
 
 #define ESP_MAXIMUM_RETRY  3
 

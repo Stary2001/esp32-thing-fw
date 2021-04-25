@@ -11,7 +11,7 @@
 
 #include "esp_http_client.h"
 
-#include "config.h"
+#include "settings.h"
 
 #define MAX_HTTP_RECV_BUFFER 512
 #define MAX_HTTP_OUTPUT_BUFFER 2048
