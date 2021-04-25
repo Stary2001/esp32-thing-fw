@@ -8,6 +8,8 @@
 #include "mqtt_client.h"
 #include "cJSON.h"
 
+#include "config.h"
+
 static const char *TAG = "MQTT";
 
 typedef struct sensor {
@@ -136,7 +138,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 void send_to_mqtt(float battery, float temperature, float humidity) {
 	esp_mqtt_client_config_t mqtt_cfg = {
-        .uri = "mqtt://your:mqtt@broker",
+        .uri = MQTT_URL,
     };
 
     sensor_set_value("battery", battery);

@@ -1,84 +1,24 @@
 #include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
 #include "driver/adc.h"
 #include "soc/adc_channel.h"
+
+#include "esp_system.h"
+#include "esp_log.h"
+#include "esp_sleep.h"
 #include "esp_adc_cal.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 
-#include "esp_system.h"
-#include "esp_log.h"
-#include "esp_sleep.h"
-
 #include "DHT22.h"
-
-//#define I2C_BUS       0
-//#define I2C_SCL_PIN   GPIO_NUM_26
-//#define I2C_SDA_PIN   GPIO_NUM_25
-
-//#define I2C_MASTER_RX_BUF_DISABLE 0
-//#define I2C_MASTER_TX_BUF_DISABLE 0
-//#define WRITE_BIT I2C_MASTER_WRITE              /*!< I2C master write */
-//#define READ_BIT I2C_MASTER_READ                /*!< I2C master read */
-//#define ACK_CHECK_EN 0x1                        /*!< I2C master will check ack from slave*/
-//#define ACK_CHECK_DIS 0x0                       /*!< I2C master will not check ack from slave */
-//#define ACK_VAL 0x0                             /*!< I2C ack value */
-//#define NACK_VAL 0x1                            /*!< I2C nack value */
-
-/*static esp_err_t i2c_master_init(void)
-{
-    printf("i2c init\n");
-    int i2c_master_port = 0;
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = I2C_SDA_PIN,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_io_num = I2C_SCL_PIN,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
-        // .clk_flags = 0,          ///!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here.
-    };
-    esp_err_t err = i2c_param_config(i2c_master_port, &conf);
-    if (err != ESP_OK) {
-        return err;
-    }
-    return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
-}
-
-static esp_err_t i2c_master_sensor_test(i2c_port_t i2c_num, uint8_t *data_h, uint8_t *data_l)
-{
-    int ret;
-    uint8_t read_id[2] = {0xef, 0xc8};
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, 0x70 << 1 | WRITE_BIT, ACK_CHECK_EN);
-    i2c_master_write(cmd, read_id, 2, ACK_CHECK_EN);
-    i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
-    i2c_cmd_link_delete(cmd);
-    if (ret != ESP_OK) {
-        printf("failed to send %s\n", esp_err_to_name(ret));
-        return ret;
-    }
-
-    vTaskDelay(30 / portTICK_RATE_MS);
-    cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, 0x70 << 1 | READ_BIT, ACK_CHECK_EN);
-    i2c_master_read_byte(cmd, data_h, ACK_VAL);
-    i2c_master_read_byte(cmd, data_l, NACK_VAL);
-    i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
-    i2c_cmd_link_delete(cmd);
-    printf("done %d\n",ret);
-    return ret;
-}*/
 
 static esp_adc_cal_characteristics_t *adc_chars;
 static const adc_channel_t channel = ADC1_GPIO34_CHANNEL;     //GPIO34 if ADC1, GPIO14 if ADC2
