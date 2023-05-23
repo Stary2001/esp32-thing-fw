@@ -4,6 +4,7 @@
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_netif.h"
+#include "esp_mac.h"
 
 #include "mqtt_client.h"
 #include "cJSON.h"
@@ -79,7 +80,7 @@ char *sensor_build_config(sensor *s, char **config_topic) {
 TaskHandle_t waiting_task_handle;
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
-    ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
+    //ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t client = event->client;
     //int msg_id;
@@ -99,10 +100,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
         	char buff[32];
         	snprintf(buff, 32, "%0.2f", s->value);
-        	esp_mqtt_client_publish(client, s->state_topic, buff, 0, 0, 0);
+        	esp_mqtt_client_publish(client, s->state_topic, buff, 0, 1, 0);
         }
-
-        esp_mqtt_client_disconnect(client);
         
         break;
     case MQTT_EVENT_DISCONNECTED:
@@ -121,6 +120,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
     case MQTT_EVENT_PUBLISHED:
         ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+	// WAIT FOR THE DAMN PUBLISH
+        esp_mqtt_client_disconnect(client);
         break;
     /*case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
@@ -137,8 +138,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 }
 
 void send_to_mqtt(float battery, float temperature, float humidity) {
-	esp_mqtt_client_config_t mqtt_cfg = {
-        .uri = MQTT_URL,
+    // XXX todo: pull mqtt url at least from nvs
+
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = MQTT_URL,
     };
 
     sensor_set_value("battery", battery);

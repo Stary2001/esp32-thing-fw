@@ -8,6 +8,7 @@
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
 #include "driver/adc.h"
+#include "driver/uart.h"
 #include "soc/adc_channel.h"
 
 #include "esp_system.h"
@@ -15,19 +16,26 @@
 #include "esp_sleep.h"
 #include "esp_adc_cal.h"
 #include "esp_wifi.h"
+#include "esp_vfs.h"
+#include "esp_vfs_dev.h"
+
+#include "linenoise/linenoise.h"
+
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 
 #include "DHT22.h"
 
 static esp_adc_cal_characteristics_t *adc_chars;
-static const adc_channel_t channel = ADC1_GPIO34_CHANNEL;     //GPIO34 if ADC1, GPIO14 if ADC2
+static const adc_channel_t channel = ADC1_CHANNEL_4;
 static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
 static const adc_atten_t atten = ADC_ATTEN_DB_11;
 static const adc_unit_t unit = ADC_UNIT_1;
 
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate
 #define NO_OF_SAMPLES   4
+
+RTC_DATA_ATTR int sleep_counter = 0;
 
 float get_battery_voltage() {
     uint32_t raw = 0;
@@ -40,13 +48,16 @@ float get_battery_voltage() {
     return (voltage*2)/1000.0;
 }
 
-void wifi_init_sta(void);
+bool wifi_init_sta(void);
 void post_to_influx(const char *post_data);
 void send_to_mqtt(float battery_voltage, float temp, float humidity);
 
 char influx_data[128];
 void app_main(void)
 {
+    printf("Slept %i times.\n", sleep_counter);
+        sleep_counter++;
+
     adc1_config_width(width);
     adc1_config_channel_atten(channel, atten);
 
@@ -62,7 +73,7 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     float temp, humidity;
-    setDHTgpio(GPIO_NUM_25);
+    setDHTgpio(GPIO_NUM_9);
 
     int dht_err = readDHT(&temp, &humidity);
     if(dht_err == 0) {
@@ -71,19 +82,24 @@ void app_main(void)
 
         snprintf(influx_data, 128, "conservatory battery=%0.2f,temperature=%0.2f,humidity=%0.2f", battery_voltage, temp, humidity);
 
-        wifi_init_sta();
-        post_to_influx(influx_data);
+        if(wifi_init_sta()) {
+            post_to_influx(influx_data);
 
-        float battery_percent = (battery_voltage - 3.4040) / 0.008;
+            float battery_percent = (battery_voltage - 3.4040) / 0.008;
 
-        send_to_mqtt(battery_percent, temp, humidity);
-        esp_wifi_stop();
+            send_to_mqtt(battery_percent, temp, humidity);
+            esp_wifi_stop();
+        }
     }
     else {
-        printf("dht fail!\n");
+        printf("dht fail %i!\n", dht_err);
+        /*while(true) {
+            printf(".\n");
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+        }*/
     }
+    printf("sleep time\n");
 
-    esp_sleep_enable_timer_wakeup(300e6);
-    rtc_gpio_isolate(GPIO_NUM_12);
+    esp_sleep_enable_timer_wakeup(120e6);
     esp_deep_sleep_start();
 }

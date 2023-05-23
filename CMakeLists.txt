@@ -5,4 +5,4 @@ cmake_minimum_required(VERSION 3.5)
 #list(APPEND COMPONENT_DIRS sht3x-esp-idf/components)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(hello-world)
+project(temp-sensor)

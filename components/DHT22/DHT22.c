@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include "esp_log.h"
 #include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
 
 #include "DHT22.h"
 
@@ -27,14 +28,15 @@
 
 static const char* TAG = "DHT";
 
-int DHTgpio = 4;				// my default DHT pin = 4
+int DHTgpio = GPIO_NUM_9;				// my default DHT pin = 4
 
 // == set the DHT used pin=========================================
 
 void setDHTgpio( int gpio )
 {
 	DHTgpio = gpio;
-	gpio_pad_select_gpio( gpio );
+	esp_rom_gpio_pad_select_gpio( gpio );
+	gpio_pullup_dis(gpio);
 }
 
 // == error handler ===============================================
@@ -78,7 +80,7 @@ int getSignalLevel( int usTimeOut, bool state )
 			return -1;
 		
 		++uSec;
-		ets_delay_us(1);		// uSec delay
+		esp_rom_delay_us(1);		// uSec delay
 	}
 	
 	return uSec;
@@ -128,6 +130,8 @@ To request data from DHT:
 
 int readDHT(float *temperature, float *humidity)
 {
+	
+
 int uSec = 0;
 
 uint8_t dhtData[MAXdhtData];
@@ -137,17 +141,19 @@ uint8_t bitInx = 7;
 	for (int k = 0; k<MAXdhtData; k++) 
 		dhtData[k] = 0;
 
-	// == Send start signal to DHT sensor ===========
 
+	portDISABLE_INTERRUPTS();
+
+	// == Send start signal to DHT sensor ===========
 	gpio_set_direction( DHTgpio, GPIO_MODE_OUTPUT );
 
 	// pull down for 3 ms for a smooth and nice wake up 
 	gpio_set_level( DHTgpio, 0 );
-	ets_delay_us( 3000 );			
+	esp_rom_delay_us( 3000 );			
 
 	// pull up for 25 us for a gentile asking for data
 	gpio_set_level( DHTgpio, 1 );
-	ets_delay_us( 25 );
+	esp_rom_delay_us( 25 );
 
 	gpio_set_direction( DHTgpio, GPIO_MODE_INPUT );		// change to input mode
   
@@ -155,13 +161,13 @@ uint8_t bitInx = 7;
 
 	uSec = getSignalLevel( 85, 0 );
 	//	ESP_LOGI( TAG, "Response = %d", uSec );
-	if( uSec<0 ) return DHT_TIMEOUT_ERROR; 
+	if( uSec<0 ) return -1; 
 
 	// -- 80us up ------------------------
 
 	uSec = getSignalLevel( 85, 1 );
 	//	ESP_LOGI( TAG, "Response = %d", uSec );
-	if( uSec<0 ) return DHT_TIMEOUT_ERROR;
+	if( uSec<0 ) return -2;
 
 	// == No errors, read the 40 data bits ================
   
@@ -170,12 +176,12 @@ uint8_t bitInx = 7;
 		// -- starts new data transmission with >50us low signal
 
 		uSec = getSignalLevel( 56, 0 );
-		if( uSec<0 ) return DHT_TIMEOUT_ERROR;
+		if( uSec<0 ) return -3;
 
 		// -- check to see if after >70us rx data is a 0 or a 1
 
 		uSec = getSignalLevel( 75, 1 );
-		if( uSec<0 ) return DHT_TIMEOUT_ERROR;
+		if( uSec<0 ) return -4;
 
 		// add the current read to the output data
 		// since all dhtData array where set to 0 at the start, 
@@ -190,6 +196,8 @@ uint8_t bitInx = 7;
 		if (bitInx == 0) { bitInx = 7; ++byteInx; }
 		else bitInx--;
 	}
+
+	portENABLE_INTERRUPTS();
 
 	// == get humidity from Data[0] and Data[1] ==========================
 
@@ -212,13 +220,14 @@ uint8_t bitInx = 7;
 	// == verify if checksum is ok ===========================================
 	// Checksum is the sum of Data 8 bits masked out 0xFF
 	
+
 	if (dhtData[4] == ((dhtData[0] + dhtData[1] + dhtData[2] + dhtData[3]) & 0xFF)) {
 		*temperature = temp_reading;
 		*humidity = hum_reading;
 		return DHT_OK;
 	}
 	else {
-		return DHT_CHECKSUM_ERROR;
+		return -5;
 	}
 }
 
