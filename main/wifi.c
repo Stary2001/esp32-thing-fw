@@ -11,8 +11,6 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
-#include "settings.h"
-
 #define ESP_MAXIMUM_RETRY  3
 
 /* FreeRTOS event group to signal when we are connected*/
@@ -50,7 +48,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-void wifi_init_sta(void)
+bool wifi_init_sta(void)
 {
     ESP_LOGI(TAG, "wifi_init_sta starting...");
     s_wifi_event_group = xEventGroupCreate();
@@ -78,8 +76,6 @@ void wifi_init_sta(void)
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = ESP_WIFI_SSID,
-            .password = ESP_WIFI_PASSWORD,
             /* Setting a password implies station will connect to all security modes including WEP/WPA.
              * However these modes are deprecated and not advisable to be used. Incase your Access point
              * doesn't support WPA2, these mode can be enabled by commenting below line */
@@ -91,6 +87,18 @@ void wifi_init_sta(void)
             },
         },
     };
+
+    nvs_handle_t nvs;
+    ESP_ERROR_CHECK(nvs_open("sensor", NVS_READONLY, &nvs));
+
+    size_t ssid_len = sizeof(wifi_config.sta.ssid);
+    ESP_ERROR_CHECK(nvs_get_str(nvs, "wifi-ssid", (char*) wifi_config.sta.ssid, &ssid_len));
+
+    size_t pass_len = sizeof(wifi_config.sta.password);
+    ESP_ERROR_CHECK(nvs_get_str(nvs, "wifi-pass", (char*) wifi_config.sta.password, &pass_len));
+
+    
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
@@ -108,9 +116,9 @@ void wifi_init_sta(void)
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s", ESP_WIFI_SSID);
+        ESP_LOGI(TAG, "connected to ap SSID:%s", wifi_config.sta.ssid);
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s", ESP_WIFI_SSID);
+        ESP_LOGI(TAG, "Failed to connect to SSID:%s", wifi_config.sta.ssid);
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
@@ -119,4 +127,6 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
     vEventGroupDelete(s_wifi_event_group);
+
+    return (bits & WIFI_CONNECTED_BIT) == WIFI_CONNECTED_BIT;
 }

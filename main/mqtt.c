@@ -9,7 +9,7 @@
 #include "mqtt_client.h"
 #include "cJSON.h"
 
-#include "settings.h"
+#include "config.h"
 
 static const char *TAG = "MQTT";
 
@@ -23,9 +23,9 @@ typedef struct sensor {
 } sensor;
 
 sensor sensors[] = {
-	{ .id = "battery",  .name = "Battery",     .state_topic = "conservatory/battery",     .unit = "%", .value = 0.0f, .class="battery"},
-	{ .id = "temperature",     .name = "Temperature", .state_topic = "conservatory/temperature", .unit = "°C", .value = 0.0f, .class="temperature"},
-	{ .id = "humidity", .name = "Humidity",    .state_topic = "conservatory/humidity",    .unit = "%", .value = 0.0f, .class="humidity"},
+	{ .id = "battery", .name = "Battery", .state_topic = "battery", .unit = "%", .value = 0.0f, .class="battery"},
+	{ .id = "temperature", .name = "Temperature", .state_topic = "temperature", .unit = "°C", .value = 0.0f, .class="temperature"},
+	{ .id = "humidity", .name = "Humidity", .state_topic = "humidity", .unit = "%", .value = 0.0f, .class="humidity"},
 };
 
 int num_pending_topic_ids = 0;
@@ -61,16 +61,20 @@ char *sensor_build_config(sensor *s, char **config_topic) {
 	*config_topic = malloc(config_topic_len+1);
 	snprintf(*config_topic, config_topic_len+1, "homeassistant/sensor/%s/config", unique_id);
 
+	char state_topic[64];
+	/* config_get_string(CONFIG_DEVICE_NAME),  */
+	snprintf(state_topic, 64, "%s/%s", "test", s->state_topic);
+
 	cJSON *json = cJSON_CreateObject();
 	cJSON *device_json = cJSON_CreateObject();
 
 	// device->name, device-> identifiers
-	cJSON_AddStringToObject(device_json, "name", "Some Device");
+	cJSON_AddStringToObject(device_json, "name", "test device");
 	cJSON_AddStringToObject(device_json, "identifiers", mac_str);
 
 	cJSON_AddStringToObject(json, "name", s->name);
 	cJSON_AddStringToObject(json, "unique_id", unique_id);
-	cJSON_AddStringToObject(json, "state_topic", s->state_topic);
+	cJSON_AddStringToObject(json, "state_topic", state_topic);
 	cJSON_AddStringToObject(json, "unit_of_measurement", s->unit);
 	cJSON_AddItemToObject(json, "device", device_json);
 	cJSON_AddStringToObject(json, "device_class", s->class);
@@ -84,6 +88,9 @@ void mqtt_publish_config(esp_mqtt_client_handle_t client) {
     // TODO: don't push config every time!
     for(int i = 0; i < num_sensors; i++) {
     	sensor *s = &sensors[i];
+    	if(strcmp(s->class, "battery") == 0 && !easy_config_get_boolean(CONFIG_HAS_BATTERY)) {
+    		continue;
+    	}
 
     	char *config_topic = NULL;
     	char *config = sensor_build_config(s, &config_topic);
@@ -98,6 +105,9 @@ void mqtt_publish_config(esp_mqtt_client_handle_t client) {
 void mqtt_publish_data(esp_mqtt_client_handle_t client) {
     for(int i = 0; i < num_sensors; i++) {
     	sensor *s = &sensors[i];
+    	if(strcmp(s->class, "battery") == 0 && !easy_config_get_boolean(CONFIG_HAS_BATTERY)) {
+    		continue;
+    	}
 
     	char buff[32];
     	snprintf(buff, 32, "%0.2f", s->value);
@@ -170,10 +180,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 }
 
 void send_to_mqtt(float battery, float temperature, float humidity) {
-    // XXX todo: pull mqtt url at least from nvs
-
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = MQTT_URL,
+        .broker.address.uri = easy_config_get_string(CONFIG_MQTT_URI),
     };
 
     sensor_set_value("battery", battery);

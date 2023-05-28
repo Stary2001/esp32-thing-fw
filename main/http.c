@@ -8,10 +8,9 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_tls.h"
-
 #include "esp_http_client.h"
 
-#include "settings.h"
+#include "config.h"
 
 #define MAX_HTTP_RECV_BUFFER 512
 #define MAX_HTTP_OUTPUT_BUFFER 2048
@@ -112,7 +111,7 @@ void post_to_influx(const char *post_data)
      * If URL as well as host and path parameters are specified, values of host and path will be considered.
      */
 
-    snprintf(query_buffer, 128, "db=%s&u=%s&p=%s", "stary", INFLUX_USERNAME, INFLUX_PASSWORD);
+    snprintf(query_buffer, 128, "db=%s&u=%s&p=%s", "stary", easy_config_get_string(CONFIG_INFLUX_USERNAME), easy_config_get_string(CONFIG_INFLUX_PASSWORD));
 
     esp_http_client_config_t config = {
         .host = "influx.9net.org",

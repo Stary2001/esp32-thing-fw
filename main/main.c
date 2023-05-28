@@ -19,10 +19,9 @@
 #include "esp_vfs.h"
 #include "esp_vfs_dev.h"
 
-#include "linenoise/linenoise.h"
-
-#include "nvs_flash.h"
 #include "sdkconfig.h"
+
+#include "config.h"
 
 #include "DHT22.h"
 
@@ -48,6 +47,28 @@ float get_battery_voltage() {
     return (voltage*2)/1000.0;
 }
 
+easy_config_entry_info config_entries[] = {
+    /* device id */
+    [CONFIG_DEVICE_ID] = { "Device ID", "device_id", CONFIG_TYPE_STRING },
+    [CONIG_DEVICE_FRIENDLY_NAME] = { "Friendly name", "friendly_name", CONFIG_TYPE_STRING },
+    [CONFIG_HAS_BATTERY] = { "Has battery", "has_battery", CONFIG_TYPE_BOOL },
+    [CONFIG_SLEEP_INTERVAL] = { "Sleep interval (seconds)", "sleep_interval", CONFIG_TYPE_INT },
+
+    [CONFIG_USE_INFLUX] = { "Use InfluxDB", "use_influx", CONFIG_TYPE_BOOL },
+    [CONFIG_INFLUX_USERNAME] = { "Influx username", "influx_username", CONFIG_TYPE_STRING },
+    [CONFIG_INFLUX_PASSWORD] = { "Influx password", "influx_password", CONFIG_TYPE_STRING },
+
+    [CONFIG_USE_MQTT] = { "Use MQTT", "use_mqtt", CONFIG_TYPE_BOOL, },
+    [CONFIG_MQTT_URI] = { "MQTT URI", "mqtt_uri", CONFIG_TYPE_STRING, },
+
+    [CONFIG_WIFI_SSID_1] = { "WiFi SSID 1", "wifi_ssid_1", CONFIG_TYPE_STRING },
+    [CONFIG_WIFI_PSK_1] = { "WiFi PSK 1", "wifi_psk_1", CONFIG_TYPE_STRING },
+    [CONFIG_WIFI_SSID_2] = { "WiFi SSID 2", "wifi_ssid_2", CONFIG_TYPE_STRING },
+    [CONFIG_WIFI_PSK_2] = { "WiFi PSK 2", "wifi_psk_2", CONFIG_TYPE_STRING },
+
+    [CONFIG_END] = { NULL, NULL, CONFIG_TYPE_END },
+};
+
 bool wifi_init_sta(void);
 void post_to_influx(const char *post_data);
 void send_to_mqtt(float battery_voltage, float temp, float humidity);
@@ -65,12 +86,12 @@ void app_main(void)
     adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
     esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars);
 
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
+    easy_config_setup(config_entries);
+    // TODO: GPIO!
+    if(!easy_config_load_from_nvs() /* || gpio read */) {
+        easy_config_setup_wifi_ap();
+        vTaskDelay(100000 / portTICK_PERIOD_MS);
     }
-    ESP_ERROR_CHECK(ret);
 
     float temp, humidity;
     setDHTgpio(GPIO_NUM_9);
@@ -100,6 +121,6 @@ void app_main(void)
     }
     printf("sleep time\n");
 
-    esp_sleep_enable_timer_wakeup(120e6);
-    esp_deep_sleep_start();
+    //esp_sleep_enable_timer_wakeup(120e6);
+    //esp_deep_sleep_start();
 }
