@@ -28,6 +28,9 @@ sensor sensors[] = {
 	{ .id = "humidity", .name = "Humidity",    .state_topic = "conservatory/humidity",    .unit = "%", .value = 0.0f, .class="humidity"},
 };
 
+int num_pending_topic_ids = 0;
+int pending_topic_ids[(sizeof(sensors) / sizeof(sensor)) * 2] = {0};
+
 const int num_sensors = sizeof(sensors) / sizeof(struct sensor);
 
 void sensor_set_value(const char *id, float value) {
@@ -77,6 +80,32 @@ char *sensor_build_config(sensor *s, char **config_topic) {
 	return string;
 }
 
+void mqtt_publish_config(esp_mqtt_client_handle_t client) {
+    // TODO: don't push config every time!
+    for(int i = 0; i < num_sensors; i++) {
+    	sensor *s = &sensors[i];
+
+    	char *config_topic = NULL;
+    	char *config = sensor_build_config(s, &config_topic);
+
+    	int topic_id = esp_mqtt_client_publish(client, config_topic, config, 0, 1, 1);
+    	pending_topic_ids[num_pending_topic_ids++] = topic_id;
+    	free(config);
+    	free(config_topic);
+    }
+}
+
+void mqtt_publish_data(esp_mqtt_client_handle_t client) {
+    for(int i = 0; i < num_sensors; i++) {
+    	sensor *s = &sensors[i];
+
+    	char buff[32];
+    	snprintf(buff, 32, "%0.2f", s->value);
+    	int topic_id = esp_mqtt_client_publish(client, s->state_topic, buff, 0, 1, 0);
+    	pending_topic_ids[num_pending_topic_ids++] = topic_id;
+    }
+}
+
 TaskHandle_t waiting_task_handle;
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
@@ -88,21 +117,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
 
-        // TODO: don't push config every time!
-        for(int i = 0; i < num_sensors; i++) {
-        	sensor *s = &sensors[i];
-        	char *config_topic = NULL;
-        	char *config = sensor_build_config(s, &config_topic);
-  
-        	esp_mqtt_client_publish(client, config_topic, config, 0, 1, 1);
-        	free(config);
-        	free(config_topic);
-
-        	char buff[32];
-        	snprintf(buff, 32, "%0.2f", s->value);
-        	esp_mqtt_client_publish(client, s->state_topic, buff, 0, 1, 0);
-        }
-        
+        // todo: don't publish config every time!
+        mqtt_publish_config(client);
+        mqtt_publish_data(client);
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -120,8 +137,23 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
     case MQTT_EVENT_PUBLISHED:
         ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
-	// WAIT FOR THE DAMN PUBLISH
-        esp_mqtt_client_disconnect(client);
+        // Clear the ID out of the array.
+        for(int i = 0; i < num_pending_topic_ids; i++) {
+        	if(pending_topic_ids[i] == event->msg_id) {
+        		pending_topic_ids[i] = 0;
+        	}
+        }
+
+        bool are_we_done_yet = true;
+        for(int i = 0; i < num_pending_topic_ids; i++) {
+        	if(pending_topic_ids[i] != 0) {
+        		are_we_done_yet = false;
+        	}
+        }
+
+        if(are_we_done_yet) {
+        	esp_mqtt_client_disconnect(client);
+        }
         break;
     /*case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
