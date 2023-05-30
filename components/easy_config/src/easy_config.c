@@ -116,6 +116,31 @@ void easy_config_setup_wifi_ap() {
     //internal_stop_dns_server();
 }
 
+static void url_decode_string(const char *input, char *output) {
+    size_t len = strlen(input);
+    size_t out = 0;
+
+    for(size_t i = 0; i < len; i++) {
+        if(input[i] == '%') {
+            char hex_value[3] = {0};
+            hex_value[0] = input[i+1];
+            hex_value[1] = input[i+2];
+            char *endptr = NULL;
+            char value = (char)strtol(hex_value, &endptr, 16);
+            if(endptr == NULL) {
+                ESP_LOGI(TAG, "Invalid hex '%s' when decoding URL!", hex_value);
+            }
+            ESP_LOGI(TAG, "hex: '%s' -> %i", hex_value, value);
+
+            output[out++] = value;
+            i += 2;
+        } else {
+            output[out++] = input[i];
+        }
+    }
+    output[out] = 0;
+}
+
 void internal_set_config_from_html_form(const char *k, const char *v) {
     ESP_LOGI(TAG, "Setting config '%s' = '%s'", k, v);
     for(size_t i = 0; i < num_config_infos; i++) {
@@ -142,7 +167,10 @@ void internal_set_config_from_html_form(const char *k, const char *v) {
                 break;
 
                 case CONFIG_TYPE_STRING:
-                    easy_config_set_string(i, v);
+                    /* url decode */
+                    char *new_string = malloc(strlen(v) + 1);
+                    url_decode_string(v, new_string);
+                    easy_config_set_string(i, new_string);
                 break;
                 
                 default:
