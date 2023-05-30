@@ -171,7 +171,6 @@ void dns_server_task(void *pvParameters)
     int ip_protocol;
 
     while (1) {
-
         struct sockaddr_in dest_addr;
         dest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
         dest_addr.sin_family = AF_INET;
@@ -242,7 +241,7 @@ void dns_server_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-void start_dns_server(void)
+void internal_start_dns_server(void)
 {
     xTaskCreate(dns_server_task, "dns_server", 4096, NULL, 5, NULL);
 }

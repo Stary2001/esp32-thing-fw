@@ -11,6 +11,8 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+#include "config.h"
+
 #define ESP_MAXIMUM_RETRY  3
 
 /* FreeRTOS event group to signal when we are connected*/
@@ -88,16 +90,8 @@ bool wifi_init_sta(void)
         },
     };
 
-    nvs_handle_t nvs;
-    ESP_ERROR_CHECK(nvs_open("sensor", NVS_READONLY, &nvs));
-
-    size_t ssid_len = sizeof(wifi_config.sta.ssid);
-    ESP_ERROR_CHECK(nvs_get_str(nvs, "wifi-ssid", (char*) wifi_config.sta.ssid, &ssid_len));
-
-    size_t pass_len = sizeof(wifi_config.sta.password);
-    ESP_ERROR_CHECK(nvs_get_str(nvs, "wifi-pass", (char*) wifi_config.sta.password, &pass_len));
-
-    
+    strncpy((char*)wifi_config.sta.ssid, easy_config_get_string(CONFIG_WIFI_SSID_1), sizeof(wifi_config.sta.ssid));
+    strncpy((char*)wifi_config.sta.password, easy_config_get_string(CONFIG_WIFI_PSK_1), sizeof(wifi_config.sta.password));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );

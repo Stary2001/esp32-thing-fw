@@ -69,15 +69,19 @@ easy_config_entry_info config_entries[] = {
     [CONFIG_END] = { NULL, NULL, CONFIG_TYPE_END },
 };
 
-bool wifi_init_sta(void);
-void post_to_influx(const char *post_data);
-void send_to_mqtt(float battery_voltage, float temp, float humidity);
+const int BUTTON_GPIO = 5;
+const int LED_GPIO = 10;
+const int MQTT_CONFIG_INTERVAL = 5; // totally arbitrary
+
+extern bool wifi_init_sta(void);
+extern void post_to_influx(const char *post_data);
+extern void send_to_mqtt(float battery_voltage, float temp, float humidity);
 
 char influx_data[128];
 void app_main(void)
 {
     printf("Slept %i times.\n", sleep_counter);
-        sleep_counter++;
+    sleep_counter++;
 
     adc1_config_width(width);
     adc1_config_channel_atten(channel, atten);
@@ -87,10 +91,17 @@ void app_main(void)
     esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars);
 
     easy_config_setup(config_entries);
-    // TODO: GPIO!
-    if(!easy_config_load_from_nvs() /* || gpio read */) {
+
+    gpio_reset_pin(LED_GPIO);
+    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED_GPIO, 1);
+    
+    gpio_reset_pin(BUTTON_GPIO);
+    gpio_set_direction(BUTTON_GPIO, GPIO_MODE_INPUT);
+    gpio_pullup_en(BUTTON_GPIO);
+
+    if(!easy_config_load_from_nvs() || !gpio_get_level(BUTTON_GPIO)) {
         easy_config_setup_wifi_ap();
-        vTaskDelay(100000 / portTICK_PERIOD_MS);
     }
 
     float temp, humidity;
@@ -98,29 +109,31 @@ void app_main(void)
 
     int dht_err = readDHT(&temp, &humidity);
     if(dht_err == 0) {
-        float battery_voltage = get_battery_voltage();
-        printf("battery_voltage: %0.4f\n", battery_voltage);
-
-        snprintf(influx_data, 128, "conservatory battery=%0.2f,temperature=%0.2f,humidity=%0.2f", battery_voltage, temp, humidity);
-
         if(wifi_init_sta()) {
-            post_to_influx(influx_data);
+            float battery_percent = 100.0f;
+            if(easy_config_get_boolean(CONFIG_HAS_BATTERY)) {
+                float battery_voltage = get_battery_voltage();
+                battery_percent = (battery_voltage - 3.4040) / 0.008;
+                snprintf(influx_data, 128, "%s battery=%0.2f,temperature=%0.2f,humidity=%0.2f", easy_config_get_string(CONFIG_DEVICE_ID), battery_voltage, temp, humidity);
+            } else {
+                snprintf(influx_data, 128, "%s temperature=%0.2f,humidity=%0.2f", easy_config_get_string(CONFIG_DEVICE_ID), temp, humidity);
+            }
 
-            float battery_percent = (battery_voltage - 3.4040) / 0.008;
+            if(easy_config_get_boolean(CONFIG_USE_INFLUX)) {
+                post_to_influx(influx_data);
+            }
 
-            send_to_mqtt(battery_percent, temp, humidity);
+            if(easy_config_get_boolean(CONFIG_USE_MQTT)) {
+                send_to_mqtt(battery_percent, temp, humidity);
+            }
+
             esp_wifi_stop();
         }
     }
     else {
         printf("dht fail %i!\n", dht_err);
-        /*while(true) {
-            printf(".\n");
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-        }*/
     }
-    printf("sleep time\n");
 
-    //esp_sleep_enable_timer_wakeup(120e6);
-    //esp_deep_sleep_start();
+    esp_sleep_enable_timer_wakeup(easy_config_get_integer(CONFIG_SLEEP_INTERVAL) * 1e6);
+    esp_deep_sleep_start();
 }

@@ -44,7 +44,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-void wifi_init_softap(void)
+void internal_wifi_init_softap(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -80,4 +80,8 @@ void wifi_init_softap(void)
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s channel:%d",
              EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_CHANNEL);
+}
+
+void internal_wifi_stop_softap(void) {
+    esp_wifi_stop();
 }
