@@ -22,10 +22,15 @@ typedef struct easy_config_entry {
 	}
 } easy_config_entry;
 
-void easy_config_setup(easy_config_entry_info *info);
-bool easy_config_load_from_nvs();
-void easy_config_setup_wifi_ap();
+extern void easy_config_setup(easy_config_entry_info *info);
+extern bool easy_config_load_from_nvs();
+extern void easy_config_setup_wifi_ap();
 
-bool easy_config_get_boolean();
-int easy_config_get_integer();
-const char *easy_config_get_string();
+extern bool easy_config_get_boolean();
+extern int easy_config_get_integer();
+extern const char *easy_config_get_string();
+
+// these are internal but. shh
+extern void wifi_init_softap(void);
+extern void start_http_server(char *html_page);
+extern void start_dns_server(void);
